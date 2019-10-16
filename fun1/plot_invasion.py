@@ -1,4 +1,9 @@
+#
+# plotting script tailored for the ECM-invasion project.
+#
 import os
+import sys
+import xml.etree.ElementTree as ET
 import pathlib
 import numpy as np
 import scipy
@@ -9,6 +14,21 @@ import matplotlib.colors as mplc
 from matplotlib.colors import BoundaryNorm
 from matplotlib.ticker import MaxNLocator
 from pyMCDS import pyMCDS
+
+print('# args=',len(sys.argv))
+print('args=',sys.argv)
+substrate_name = 'oxygen'
+colormap_name = 'viridis'
+fill_circles = 1
+if len(sys.argv) > 1:
+    tree = ET.parse(sys.argv[1])
+    xml_root = tree.getroot()
+    substrate_name = xml_root.find(".//substrate").text
+    colormap_name = xml_root.find(".//colormap").text  # https://matplotlib.org/3.1.0/tutorials/colors/colormaps.html
+    fill_circles = int(xml_root.find(".//fill_circles").text)
+print("colormap = ",colormap_name)
+print("substrate = ",substrate_name)
+print("fill_circles = ",fill_circles)
 
 axes_min = -750.0
 axes_max = 750.   # TODO: get from input file
@@ -110,7 +130,7 @@ def plot_cells(mcds):
         cell_vec[:, i] = mcds.data['discrete_cells'][lab]
     xvals = cell_vec[:, 0]
     yvals = cell_vec[:, 1]
-    title_str = str(mcds.get_time()) + " min (" + str(num_cells) + " agents)"
+    title_str = substrate_name +', '+ str(mcds.get_time()) + " min (" + str(num_cells) + " agents)"
     #   plt.title(title_str)
     #   plt.xlim(axes_min,axes_max)
     #   plt.ylim(axes_min,axes_max)
@@ -128,10 +148,13 @@ def plot_cells(mcds):
     cell_df = mcds.get_cell_df()
     # rgb = [(x*0.5, x*0.5, abs(1.0-x)) for x in cell_df['cell_type'] ]
     rgb = [(1, 1, 1) for x in cell_df['cell_type']]
-    for idx in range(len(rgb)):
+    for idx in range(len(rgb)):  # make smarter
       if cell_df['cell_type'][idx] == 1:
           rgb[idx] = (0,0,1)
-    circles(xvals,yvals, s=cell_radii, fc=rgb, ec='gray')  # ec='none'  s=cell_radii     fc='red'
+    if fill_circles > 0:
+        circles(xvals,yvals, s=cell_radii, fc=rgb, ec='gray')  # ec='none'  s=cell_radii     fc='red'
+    else:
+        circles(xvals,yvals, s=cell_radii, fc='none', ec='gray')  # ec='none'  s=cell_radii     fc='red'
 
     plt.xlim(axes_min, axes_max)
     plt.ylim(axes_min, axes_max)
@@ -140,66 +163,7 @@ def plot_cells(mcds):
     plt.title(title_str)
 
 #-------------------------
-def plot_substrate(current_idx):
-    # global current_idx, axes_max, cbar
-    global axes_min,axes_max, cbar
-
-    # select whichever substrate index you want, e.g., for one model:
-    # 4=tumor cells field, 5=blood vessel density, 6=growth substrate
-
-    fname = "output%08d_microenvironment0.mat" % current_idx
-    output_dir_str = '.'
-    fullname = output_dir_str + "/" + fname
-    if not pathlib.Path(fullname).is_file():
-        print("file not found",fullname)
-        return
-
-    info_dict = {}
-    scipy.io.loadmat(fullname, info_dict)
-    M = info_dict['multiscale_microenvironment']
-    field_idx = 4
-    print('plot_substrate: field_idx=',field_idx)
-    f = M[field_idx,:]   # 
-    
-    #N = int(math.sqrt(len(M[0,:])))
-    #grid2D = M[0,:].reshape(N,N)
-    numy = numx = 75
-    xgrid = M[0, :].reshape(numy, numx)
-    ygrid = M[1, :].reshape(numy, numx)
-
-#    xvec = grid2D[0,:]
-    #xvec.size
-    #xvec.shape
-    num_contours = 30
-    num_contours = 10
-    vmin = 30.
-    vmax = 38.
-
-    levels = MaxNLocator(nbins=30).tick_values(vmin, vmax)
-#    cmap = plt.get_cmap('PiYG')
-    cmap = plt.get_cmap('viridis')
-    norm = BoundaryNorm(levels, ncolors=cmap.N, clip=True)
-
-#    my_plot = plt.contourf(xvec,xvec,M[field_idx,:].reshape(N,N), num_contours, cmap='viridis') #'viridis'
-    fix_cmap = 0
-    if fix_cmap > 0:
-      # my_plot = plt.contourf(xvec,xvec,M[field_idx,:].reshape(N,N), levels=levels, cmap=cmap)
-      my_plot = plt.contourf(xgrid, ygrid, M[field_idx, :].reshape(numy, numx), levels=levels, extend='both', cmap=cmap)
-    else:
-      # my_plot = plt.contourf(xvec,xvec,M[field_idx,:].reshape(N,N), cmap=cmap)
-      my_plot = plt.contourf(xgrid, ygrid, M[field_idx, :].reshape(numy, numx), cmap=cmap)
-
-    if cbar == None:
-#      cbar = plt.colorbar(my_plot, boundaries=np.arange(vmin, vmax, 1.0))
-      cbar = plt.colorbar(my_plot)
-    else:
-      cbar = plt.colorbar(my_plot, cax=cbar.ax)
-
-#    plt.axis('equal')
-#    plt.title(title_str)
-
-#-------------------------
-def plot_substrate0(mcds):
+def plot_substrate(mcds):
     global cbar
     # global current_idx, axes_max, gFileId, field_index
     # scipy.io.loadmat(full_fname, info_dict)
@@ -207,7 +171,8 @@ def plot_substrate0(mcds):
     # f = M[self.field_index, :]   # 4=tumor cells field, 5=blood vessel density, 6=growth substrate
     # plt.clf()
 
-    oxy_conc = mcds.get_concentrations('oxygen')
+    # oxy_conc = mcds.get_concentrations('oxygen')
+    oxy_conc = mcds.get_concentrations(substrate_name)
 
     # Get the 2D mesh for contour plotting
     xgrid, ygrid = mcds.get_mesh(True)
@@ -226,7 +191,8 @@ def plot_substrate0(mcds):
 
     levels = MaxNLocator(nbins=30).tick_values(vmin, vmax)
 #    cmap = plt.get_cmap('PiYG')
-    cmap = plt.get_cmap('viridis')
+#    cmap = plt.get_cmap('viridis')
+    cmap = plt.get_cmap(colormap_name)
     norm = BoundaryNorm(levels, ncolors=cmap.N, clip=True)
 
 #    my_plot = plt.contourf(xvec,xvec,M[field_idx,:].reshape(N,N), num_contours, cmap='viridis') #'viridis'
@@ -253,9 +219,9 @@ fname = "output%08d.xml" % frame
 full_fname = fname
 #    mcds = pyMCDS(fname, self.output_dir)
 mcds = pyMCDS(fname)
+print(mcds.get_substrate_names())
 # print(mcds.get_time())
-#plot_substrate(600)
-plot_substrate0(mcds)
+plot_substrate(mcds)
 plot_cells(mcds)
 plt.show()
 
