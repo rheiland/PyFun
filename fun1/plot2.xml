@@ -2,4 +2,5 @@
 <plot_params>
 <substrate>leader signal</substrate>
 <colormap>YlGn</colormap>
+<fill_circles>0</fill_circles>
 </plot_params>
